@@ -1,0 +1,215 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCP-173 Cleaning Management</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#111;color:#ddd;font-family:Arial,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;overflow:hidden}
+#game{height:100vh;display:flex;flex-direction:column}
+header{height:62px;background:#202020;border-bottom:2px solid #444;display:flex;align-items:center;justify-content:space-between;padding:0 18px}
+header h1{font-size:20px;margin:0;color:#eee}
+.stats{display:flex;gap:18px;font-size:14px}
+.stat b{color:#fff}
+#danger{color:#ff7777}
+main{flex:1;display:flex;min-height:0}
+#facility{position:relative;flex:1;background:#191919;overflow:hidden}
+#room{position:absolute;left:5%;right:5%;top:7%;bottom:8%;border:5px solid #555;background:
+linear-gradient(90deg,transparent 49.5%,#333 49.5%,#333 50.5%,transparent 50.5%),
+linear-gradient(transparent 49.5%,#333 49.5%,#333 50.5%,transparent 50.5%),
+#252525;
+box-shadow:inset 0 0 50px #000}
+.walllabel{position:absolute;color:#777;font-size:12px;pointer-events:none}
+#entity{
+position:absolute;
+width:90px;
+height:120px;
+background-image:url("scp173.webp");
+background-size:contain;
+background-position:center;
+background-repeat:no-repeat;
+transform:translate(-50%,-50%);
+z-index:5;
+transition:left .25s linear,top .25s linear;
+}
+#entity.moving{animation:shake .22s infinite alternate}
+@keyframes shake{from{transform:translate(-50%,-50%) rotate(-2deg)}to{transform:translate(-50%,-50%) rotate(2deg)}}
+.dirt{position:absolute;width:38px;height:24px;border-radius:45% 55% 50% 40%;background:rgba(93,38,32,.85);box-shadow:0 0 7px rgba(80,20,15,.8);z-index:2;pointer-events:none}
+.dirt:after{content:"";position:absolute;width:8px;height:5px;background:#52241f;border-radius:50%;right:-3px;bottom:2px}
+#controls{width:315px;background:#202020;border-left:2px solid #444;padding:16px;overflow:auto}
+#controls h2{font-size:17px;margin:0 0 12px}
+button{width:100%;padding:12px;margin:6px 0;background:#383838;border:1px solid #666;color:#eee;border-radius:4px;cursor:pointer;font-size:14px}
+button:hover{background:#4a4a4a}
+button:disabled{opacity:.4;cursor:not-allowed}
+#message{min-height:54px;background:#151515;border:1px solid #444;padding:9px;font-size:13px;line-height:1.45;margin:10px 0}
+.bar{height:20px;background:#111;border:1px solid #555;border-radius:3px;overflow:hidden;margin:5px 0 12px}
+.fill{height:100%;width:0%;transition:width .2s;background:#b84b42}
+#log{font-size:12px;background:#151515;border:1px solid #444;height:180px;overflow:auto;padding:8px;line-height:1.5}
+.logline{margin-bottom:4px;color:#aaa}
+.logline.alert{color:#ff7777}
+#gameover{position:absolute;inset:0;background:rgba(0,0,0,.9);z-index:20;display:none;align-items:center;justify-content:center;text-align:center}
+#gameover .box{border:2px solid #9b2d2d;padding:35px;background:#171717;max-width:520px}
+#gameover h2{font-size:32px;color:#e05252;margin-top:0}
+.small{font-size:11px;color:#888}
+@media(max-width:800px){
+  main{flex-direction:column}
+  #facility{height:62%;flex:none}
+  #controls{width:100%;height:38%;border-left:0;border-top:2px solid #444}
+  #log{height:90px}
+  #room{left:3%;right:3%;top:5%;bottom:5%}
+}
+</style>
+</head>
+<body>
+<div id="game">
+<header>
+  <h1>SCP-173 ― Containment Chamber Maintenance</h1>
+  <div class="stats">
+    <span>Elapsed Time: <b id="time">00:00</b></span>
+    <span>Contamination: <b id="danger">0%</b></span>
+  </div>
+</header>
+<main>
+  <section id="facility">
+    <div id="room">
+      <div class="walllabel" style="left:8px;top:8px">CONTAINMENT CHAMBER</div>
+      <div class="walllabel" style="right:8px;bottom:8px">D-173 / CLEANING ZONE</div>
+      <div id="entity" title="SCP-173"> </div>
+    </div>
+    <div id="gameover">
+      <div class="box">
+        <h2>CONTAINMENT BREACH</h2>
+        <p>The accumulation of substances around SCP-173 has exceeded dangerous levels.</p>
+        <p>Containment protocols have failed. Game Over.</p>
+        <button onclick="location.reload()">Play Again</button>
+      </div>
+    </div>
+  </section>
+  <aside id="controls">
+    <h2>Facility Management</h2>
+    <div id="message">Monitor: SCP-173 is currently wandering around the containment chamber. Dispatch D-Class personnel before contamination levels rise.</div>
+
+    <div>Containment Status</div>
+    <div class="bar"><div id="containFill" class="fill"></div></div>
+
+    <button id="sendBtn" onclick="sendDClass()">Dispatch D-Class Personnel</button>
+    <button onclick="cleanEmergency()">Order Emergency Cleaning</button>
+
+    <p class="small">Only one D-Class personnel member can be dispatched at a time. Cleaning takes several seconds.</p>
+    <h2>Surveillance Log</h2>
+    <div id="log"></div>
+  </aside>
+</main>
+</div>
+
+<script>
+const room=document.getElementById("room");
+const entity=document.getElementById("entity");
+const dangerEl=document.getElementById("danger");
+const fill=document.getElementById("containFill");
+const timeEl=document.getElementById("time");
+const msg=document.getElementById("message");
+const logEl=document.getElementById("log");
+const sendBtn=document.getElementById("sendBtn");
+
+let danger=0, seconds=0, gameOver=false, cleaning=false, dirtCount=0;
+let x=50,y=50;
+
+function log(t,alert=false){
+  const d=document.createElement("div");
+  d.className="logline"+(alert?" alert":"");
+  d.textContent="["+timeEl.textContent+"] "+t;
+  logEl.prepend(d);
+  while(logEl.children.length>35) logEl.lastChild.remove();
+}
+function updateDanger(){
+  danger=Math.max(0,Math.min(100,danger));
+  dangerEl.textContent=Math.floor(danger)+"%";
+  fill.style.width=danger+"%";
+  if(danger>=75){dangerEl.style.color="#ff3b30";fill.style.background="#b62d2d"}
+  else if(danger>=50){dangerEl.style.color="#ff9f43";fill.style.background="#b86a32"}
+  else {dangerEl.style.color="#ff7777";fill.style.background="#b84b42"}
+  if(danger>=100 && !gameOver) endGame();
+}
+function move173(){
+  if(gameOver)return;
+  x=12+Math.random()*76;
+  y=14+Math.random()*72;
+  entity.style.left=x+"%";
+  entity.style.top=y+"%";
+  entity.classList.add("moving");
+  setTimeout(()=>entity.classList.remove("moving"),260);
+}
+function makeDirt(){
+  if(gameOver)return;
+  const d=document.createElement("div");
+  d.className="dirt";
+  d.style.left=(x+(Math.random()*10-5))+"%";
+  d.style.top=(y+(Math.random()*10-5))+"%";
+  d.style.transform="rotate("+Math.random()*180+"deg) scale("+(0.7+Math.random()*1.1)+")";
+  room.appendChild(d);
+  dirtCount++;
+  danger+=2.2+Math.random()*2.2;
+  updateDanger();
+  if(danger>=70) log("WARNING: Dangerous substances are accumulating rapidly.",true);
+}
+function sendDClass(){
+  if(gameOver||cleaning)return;
+  cleaning=true;
+  sendBtn.disabled=true;
+  msg.textContent="Monitor: D-Class personnel have entered the containment chamber. Cleaning operation in progress.";
+  log("D-Class personnel dispatched to the containment chamber.");
+  setTimeout(()=>{
+    if(gameOver)return;
+    cleaning=false;
+    sendBtn.disabled=false;
+    const reduction=Math.min(danger,18+Math.random()*12);
+    danger-=reduction;
+    const dirt=document.querySelectorAll(".dirt");
+    const remove=Math.ceil(dirt.length*0.55);
+    for(let i=0;i<remove;i++) if(dirt[i]) dirt[i].remove();
+    updateDanger();
+    msg.textContent="Monitor: D-Class cleaning operation completed.";
+    log("Cleaning completed. Contamination reduced by approximately "+Math.floor(reduction)+"%.");
+  },3500);
+}
+function cleanEmergency(){
+  if(gameOver)return;
+  const reduction=Math.min(danger,8);
+  danger-=reduction;
+  updateDanger();
+  msg.textContent="Monitor: The emergency cleaning team has handled the situation from the corridor.";
+  log("Emergency cleaning performed. Effectiveness is limited.");
+}
+function endGame(){
+  gameOver=true;
+  entity.style.display="none";
+  document.getElementById("gameover").style.display="flex";
+  msg.textContent="ALERT: SCP-173 containment has failed.";
+  log("SCP-173 CONTAINMENT BREACH. GAME OVER.",true);
+}
+setInterval(()=>{
+  if(gameOver)return;
+  seconds++;
+  const m=String(Math.floor(seconds/60)).padStart(2,"0");
+  const s=String(seconds%60).padStart(2,"0");
+  timeEl.textContent=m+":"+s;
+},1000);
+setInterval(()=>{
+  if(gameOver)return;
+  move173();
+},1800);
+setInterval(()=>{
+  if(gameOver)return;
+  makeDirt();
+},2600);
+
+entity.style.left=x+"%";
+entity.style.top=y+"%";
+log("SCP-173 containment chamber surveillance initiated.");
+log("Cleaning personnel standing by.");
+</script>
+</body>
+</html>
