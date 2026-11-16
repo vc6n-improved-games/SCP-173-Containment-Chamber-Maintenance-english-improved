@@ -59,6 +59,24 @@ button:disabled{opacity:.4;cursor:not-allowed}
   #controls{width:100%;height:38%;border-left:0;border-top:2px solid #444}
   #log{height:90px}
   #room{left:3%;right:3%;top:5%;bottom:5%}
+  #dclassGroup {
+  position:absolute;
+  top:8%;
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  justify-content:center;
+  align-items:flex-end;
+  gap:15px;
+  z-index:6;
+  pointer-events:none;
+}
+
+.dclass-person {
+  width:50px;
+  height:85px;
+  object-fit:contain;
+}
 }
 </style>
 </head>
@@ -77,6 +95,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
       <div class="walllabel" style="left:8px;top:8px">CONTAINMENT CHAMBER</div>
       <div class="walllabel" style="right:8px;bottom:8px">D-173 / CLEANING ZONE</div>
       <div id="entity" title="SCP-173"> </div>
+      <div id="dclassGroup"></div>
     </div>
     <div id="gameover">
       <div class="box">
@@ -107,6 +126,27 @@ button:disabled{opacity:.4;cursor:not-allowed}
 <script>
 const room=document.getElementById("room");
 const entity=document.getElementById("entity");
+const dclassGroup=document.getElementById("dclassGroup");
+
+let dClassTimeout;
+
+function showDClass(count,duration){
+  dclassGroup.innerHTML="";
+
+  for(let i=0;i<count;i++){
+    const img=document.createElement("img");
+    img.src="dclass.png";
+    img.className="dclass-person";
+    img.alt="D-Class Personnel";
+    dclassGroup.appendChild(img);
+  }
+
+  clearTimeout(dClassTimeout);
+
+  dClassTimeout=setTimeout(()=>{
+    dclassGroup.innerHTML="";
+  },duration);
+}
 const dangerEl=document.getElementById("danger");
 const fill=document.getElementById("containFill");
 const timeEl=document.getElementById("time");
@@ -159,6 +199,7 @@ function sendDClass(){
   if(gameOver||cleaning)return;
   cleaning=true;
   sendBtn.disabled=true;
+  showDClass(1,3500);
   msg.textContent="Monitor: D-Class personnel have entered the containment chamber. Cleaning operation in progress.";
   log("D-Class personnel dispatched to the containment chamber.");
   setTimeout(()=>{
@@ -177,6 +218,7 @@ function sendDClass(){
 }
 function cleanEmergency(){
   if(gameOver)return;
+  showDClass(2,2500);
   const reduction=Math.min(danger,8);
   danger-=reduction;
   updateDanger();
@@ -208,7 +250,7 @@ setInterval(()=>{
 
 entity.style.left=x+"%";
 entity.style.top=y+"%";
-log("SCP-173 containment chamber surveillance initiated.");
+log("73 containment chamber surveillance initiated.");
 log("Cleaning personnel standing by.");
 </script>
 </body>
